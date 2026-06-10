@@ -66,7 +66,10 @@ def notify(title: str, body: str):
         req = _ur.Request(
             f"https://ntfy.sh/{NTFY_TOPIC}",
             data=body.encode("utf-8"),
-            headers={"Title": title, "Priority": "high", "Tags": "runner,tada"},
+            headers={
+                "Title":    title.encode("ascii", "ignore").decode(),
+                "Priority": "high",
+            },
             method="POST",
         )
         _ur.urlopen(req, timeout=10)
