@@ -61,14 +61,18 @@ def log(msg: str):
 
 def notify(title: str, body: str):
     """Send push notification via ntfy.sh (works everywhere, including GitHub Actions)."""
-    import http.client, ssl
+    import http.client, ssl, json as _json
     try:
-        message = f"{title}\n\n{body}" if body else title
-        payload = message.encode("utf-8")
+        payload = _json.dumps({
+            "topic":    NTFY_TOPIC,
+            "title":    title,
+            "message":  body or title,
+            "priority": 4,
+        }).encode("utf-8")
         ctx = ssl.create_default_context()
         conn = http.client.HTTPSConnection("ntfy.sh", context=ctx, timeout=10)
-        conn.request("POST", f"/{NTFY_TOPIC}", body=payload,
-                     headers={"Content-Type": "text/plain; charset=utf-8",
+        conn.request("POST", "/", body=payload,
+                     headers={"Content-Type": "application/json",
                               "Content-Length": str(len(payload))})
         resp = conn.getresponse()
         resp_body = resp.read().decode("utf-8", errors="replace")
