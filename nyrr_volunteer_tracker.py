@@ -61,13 +61,41 @@ def log(msg: str):
 
 def notify(title: str, body: str):
     """Send push notification via ntfy.sh (works everywhere, including GitHub Actions)."""
-    import http.client, ssl, json as _json
+    if not NTFY_TOPIC:
+        log("ntfy: NTFY_TOPIC not set — skipping notification")
+        return
+
+    message = body or title
+    title_safe = title.encode("ascii", "ignore").decode()[:80]
+
+    # Try curl first — always available on Linux/GitHub Actions, no encoding quirks
+    import shutil, subprocess
+    if shutil.which("curl"):
+        try:
+            result = subprocess.run(
+                [
+                    "curl", "-s", "--max-time", "10",
+                    "-X", "POST", f"https://ntfy.sh/{NTFY_TOPIC}",
+                    "-H", f"Title: {title_safe}",
+                    "-H", "Priority: high",
+                    "-d", message,
+                ],
+                capture_output=True, text=True, timeout=15,
+            )
+            if result.returncode == 0:
+                log(f"Push notification sent → ntfy.sh/{NTFY_TOPIC}")
+            else:
+                log(f"ntfy curl failed (rc={result.returncode}): {result.stderr.strip()}")
+        except Exception as e:
+            log(f"ntfy curl error: {e}")
+        return  # don't fall through to Windows path on Linux
+
+    # Fallback for Windows (no curl in PATH)
     try:
+        import http.client, ssl, json as _json
         payload = _json.dumps({
-            "topic":    NTFY_TOPIC,
-            "title":    title,
-            "message":  body or title,
-            "priority": 4,
+            "topic": NTFY_TOPIC, "title": title_safe,
+            "message": message, "priority": 4,
         }).encode("utf-8")
         ctx = ssl.create_default_context()
         conn = http.client.HTTPSConnection("ntfy.sh", context=ctx, timeout=10)
@@ -356,19 +384,26 @@ async def _scrape_all_inner() -> list[dict]:
             viewport={"width": 1280, "height": 900},
         )
 
-        # ── Step 1: load listing page ─────────────────────────────────────────
+        # ── Step 1: load listing page (up to 2 attempts) ─────────────────────
         log("Loading listing page...")
         page = await context.new_page()
-        try:
-            await page.goto(VOLUNTEER_URL, timeout=90_000, wait_until="domcontentloaded")
-        except PWTimeout:
-            log("Listing page timed out.")
-            await browser.close()
-            return []
+        loaded = False
+        for attempt in range(1, 3):
+            try:
+                await page.goto(VOLUNTEER_URL, timeout=45_000, wait_until="domcontentloaded")
+                url = page.url
+                if "virtualcorral" in url or "waitingroom" in url.lower():
+                    log(f"  Attempt {attempt}: in virtual waiting room.")
+                    await asyncio.sleep(5)
+                    continue
+                loaded = True
+                break
+            except PWTimeout:
+                log(f"  Attempt {attempt}: listing page timed out, retrying...")
+                await asyncio.sleep(5)
 
-        url = page.url
-        if "virtualcorral" in url or "waitingroom" in url.lower():
-            log("In virtual waiting room — try again later.")
+        if not loaded:
+            log("Listing page failed after 2 attempts — aborting.")
             await browser.close()
             return []
         # Wait specifically for event links (not just any <a>) before extracting
