@@ -331,6 +331,13 @@ async def _scrape_detail_async(event: dict, context) -> list[dict]:
 
 
 async def _scrape_all_async() -> list[dict]:
+    try:
+        return await asyncio.wait_for(_scrape_all_inner(), timeout=300)  # 5-min hard cap
+    except asyncio.TimeoutError:
+        log("ERROR: Scrape timed out after 5 minutes — aborting.")
+        return []
+
+async def _scrape_all_inner() -> list[dict]:
     from playwright.async_api import async_playwright, TimeoutError as PWTimeout
 
     all_roles = []
