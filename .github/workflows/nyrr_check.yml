@@ -1,0 +1,46 @@
+name: NYRR Volunteer Check
+
+on:
+  schedule:
+    # Every 15 minutes, 11am–3am UTC = 7am–11pm Eastern (EDT)
+    - cron: '*/15 11-23 * * *'
+    - cron: '*/15 0-3 * * *'
+  workflow_dispatch:   # also allows manual runs from GitHub website
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}
+
+      - name: Install Python dependencies
+        run: pip install playwright
+
+      - name: Install Chromium
+        run: playwright install chromium --with-deps
+
+      - name: Run tracker
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python nyrr_volunteer_tracker.py
+
+      - name: Save seen-opportunities state
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add -f nyrr_seen_opportunities.json 2>/dev/null || true
+          git diff --staged --quiet || git commit -m "chore: update seen opportunities"
+          git push 2>/dev/null || true
