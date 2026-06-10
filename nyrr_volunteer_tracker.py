@@ -61,22 +61,22 @@ def log(msg: str):
 
 def notify(title: str, body: str):
     """Send push notification via ntfy.sh (works everywhere, including GitHub Actions)."""
-    import urllib.request as _ur
-    import urllib.error as _ue
+    import http.client, ssl
     try:
-        # Simplest possible ntfy.sh request — plain text body, no extra headers
-        # Title goes on the first line; body follows after a blank line
         message = f"{title}\n\n{body}" if body else title
-        req = _ur.Request(
-            f"https://ntfy.sh/{NTFY_TOPIC}",
-            data=message.encode("utf-8"),
-            method="POST",
-        )
-        req.add_header("Title", title.encode("ascii", "ignore").decode("ascii"))
-        _ur.urlopen(req, timeout=10)
-        log(f"Push notification sent → ntfy.sh/{NTFY_TOPIC}")
-    except _ue.HTTPError as e:
-        log(f"ntfy HTTP {e.code}: {e.read().decode('utf-8', errors='replace')}")
+        payload = message.encode("utf-8")
+        ctx = ssl.create_default_context()
+        conn = http.client.HTTPSConnection("ntfy.sh", context=ctx, timeout=10)
+        conn.request("POST", f"/{NTFY_TOPIC}", body=payload,
+                     headers={"Content-Type": "text/plain; charset=utf-8",
+                              "Content-Length": str(len(payload))})
+        resp = conn.getresponse()
+        resp_body = resp.read().decode("utf-8", errors="replace")
+        conn.close()
+        if resp.status == 200:
+            log(f"Push notification sent → ntfy.sh/{NTFY_TOPIC}")
+        else:
+            log(f"ntfy HTTP {resp.status}: {resp_body}")
     except Exception as e:
         log(f"ntfy notification failed (non-fatal): {e}")
 
