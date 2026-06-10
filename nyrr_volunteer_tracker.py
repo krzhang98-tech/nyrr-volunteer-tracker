@@ -473,9 +473,6 @@ def main():
     mode = "9+1 credit only" if NINE_PLUS_ONE_ONLY else "all opportunities"
     log(f"Mode: {mode} | Excluding: leadership/medical roles")
 
-    # TEST MODE — remove this block once notifications are confirmed working
-    notify("NYRR Tracker: test ping", f"Script ran at {datetime.now().strftime('%I:%M %p')}. Notifications are working!")
-
     try:
         all_roles = scrape_all()
     except ImportError:
