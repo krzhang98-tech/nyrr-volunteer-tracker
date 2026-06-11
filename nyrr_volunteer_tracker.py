@@ -497,7 +497,9 @@ def main():
     log(f"Qualifying roles after filters: {len(qualifying)}")
 
     seen = load_seen()
-    new_ones = [r for r in qualifying if role_id(r["race_name"], r["race_date"], r["role_name"]) not in seen]
+    # Notifications only fire for 9+1 qualifying roles regardless of display mode
+    nine_plus_one = [r for r in qualifying if is_nine_plus_one_js(r["raw"])]
+    new_ones = [r for r in nine_plus_one if role_id(r["race_name"], r["race_date"], r["role_name"]) not in seen]
 
     # Group qualifying roles by race
     from collections import defaultdict
