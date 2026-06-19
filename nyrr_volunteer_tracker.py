@@ -322,9 +322,9 @@ async def _scrape_detail_async(event: dict, context) -> list[dict]:
             const results = [];
             const cards = document.querySelectorAll('div.category-box');
             cards.forEach(card => {
-                if (card.getAttribute('data-filterable-status') === 'SOL') return;
                 const cardText = card.innerText || '';
-                if (/registration closed|closed|sold out/i.test(cardText)) return;
+                // Only include cards that explicitly show availability
+                if (!/available|near capacity/i.test(cardText)) return;
                 const nameEl = card.querySelector('.category-name');
                 const role_name = nameEl ? nameEl.innerText.trim() : '';
                 if (!role_name) return;
